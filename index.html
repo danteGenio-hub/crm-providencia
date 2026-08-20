@@ -3,240 +3,74 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CRM Providencia - Galerías & Locales</title>
+  <title>CRM Providencia</title>
   <link rel="stylesheet" href="styles.css">
+  <!-- Cliente oficial de Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="container">
-    <header class="header">
-      <div>
-        <h1>Dashboard CRM Prospectos & Galerías</h1>
-        <p class="subtitle">Gestión comercial y prospección en terreno - Providencia</p>
-      </div>
+    <header>
+      <h1>CRM Prospectos Providencia</h1>
+      <div class="stats" id="statsContainer">Cargando datos...</div>
     </header>
 
-    <!-- NAVEGACIÓN -->
-    <nav class="tabs-nav">
-      <button class="tab-btn active" onclick="switchTab(this, 'galeriaEspecificaTab')">🏢 Vista por Galería Seleccionada</button>
-      <button class="tab-btn" onclick="switchTab(this, 'localesTab')">🏪 Lista General de Locales</button>
-      <button class="tab-btn" onclick="switchTab(this, 'galeriasTab')">🏛️ Directorio de Galerías</button>
-    </nav>
-
-    <!-- SECCIÓN DE VISTA POR GALERÍA SELECCIONADA -->
-    <div id="galeriaEspecificaTab" class="tab-content active">
-      <section class="card galeria-selector-card">
-        <h2>🏛️ Selección de Galería / Portal</h2>
-        <p style="color: #94a3b8; font-size:0.9rem;">Elige una galería de Providencia para ver sus datos de contacto y la lista de todos sus locales comerciales integrados.</p>
-        
-        <div class="form-group" style="margin-top: 1rem;">
-          <label for="selectGaleriaVista"><strong>Galería o Caracol:</strong></label>
-          <select id="selectGaleriaVista" style="font-size:1.1rem; padding:0.6rem; width:100%; max-width:500px;" onchange="renderLocalesPorGaleria()">
-            <!-- Se llena dinámicamente con las galerías -->
-          </select>
-        </div>
+    <main>
+      <section class="controls">
+        <input type="text" id="searchInput" placeholder="Buscar por nombre, dirección o rubro...">
+        <select id="filterGaleria">
+          <option value="">Todas las galerías</option>
+        </select>
+        <button id="btnNewLocal" class="btn-primary">+ Nuevo Local</button>
       </section>
 
-      <!-- TARJETA INFORMATIVA DE LA GALERÍA -->
-      <section class="card" id="galeriaInfoCard" style="margin-top: 1rem;">
-        <div id="galeriaDetails"></div>
+      <section class="list-container">
+        <div id="localesList" class="locales-grid"></div>
       </section>
-
-      <!-- TABLA DE LOCALES DE LA GALERÍA SELECCIONADA -->
-      <section class="card table-section" style="margin-top: 1rem;">
-        <h3>🏪 Locales Comercializados en esta Galería</h3>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Local / N°</th>
-                <th>Rubro</th>
-                <th>Contacto</th>
-                <th>Estado Google Maps</th>
-                <th>Estado Venta</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody id="tablaLocalesGaleriaBody"></tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-
-    <!-- PESTAÑA LISTA GENERAL DE LOCALES -->
-    <div id="localesTab" class="tab-content">
-      <div class="main-layout">
-        <!-- Formulario -->
-        <section class="card form-section">
-          <h2>➕ Registrar Nuevo Local</h2>
-          <form id="prospectForm">
-            <div class="form-group">
-              <label for="nombre">Nombre del Local *</label>
-              <input type="text" id="nombre" placeholder="Ej: Bazar Don Pepe" required>
-            </div>
-            <div class="form-group">
-              <label for="rubro">Rubro / Categoría *</label>
-              <select id="rubro" required>
-                <option value="Galerías, Caracoles & Pasajes">🏛️ Galerías, Caracoles & Pasajes</option>
-                <option value="Minimarkets & Bazares" selected>🏪 Minimarkets & Bazares</option>
-                <option value="Comida Rápida & Restoranes">🍔 Comida Rápida & Restoranes</option>
-                <option value="Ópticas & Retail">👓 Ópticas & Retail</option>
-                <option value="Peluquerías & Estética">✂️ Peluquerías & Estética</option>
-                <option value="Servicios Varios">💼 Servicios Varios</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="galeriaPertenece">¿Pertenece a una Galería/Caracol?</label>
-              <select id="galeriaPertenece"></select>
-            </div>
-            <div class="form-group">
-              <label for="numLocal">N° de Local / Subterráneo / Piso</label>
-              <input type="text" id="numLocal" placeholder="Ej: Local 12-A / Piso 2">
-            </div>
-            <div class="form-group">
-              <label for="direccion">Dirección / Calle *</label>
-              <input type="text" id="direccion" placeholder="Ej: Av. Providencia 2198" required>
-            </div>
-            <div class="form-group">
-              <label for="whatsapp">Teléfono / WhatsApp</label>
-              <input type="tel" id="whatsapp" placeholder="+56 9 1234 5678">
-            </div>
-            <div class="form-group">
-              <label for="email">Correo Electrónico</label>
-              <input type="email" id="email" placeholder="contacto@local.cl">
-            </div>
-            <div class="form-checkbox-group">
-              <label class="checkbox-label">
-                <input type="checkbox" id="tieneGoogleMaps">
-                <span>¿Tiene ficha activa en Google Maps?</span>
-              </label>
-            </div>
-            <button type="submit" class="btn-primary">💾 Guardar Local</button>
-          </form>
-        </section>
-
-        <!-- Tabla General -->
-        <section class="card table-section">
-          <div class="table-header">
-            <h2>📍 Listado General</h2>
-            <div class="filters-bar">
-              <input type="text" id="searchInput" placeholder="🔍 Buscar por palabra clave..." oninput="renderLocalesTable()">
-              <select id="filterRubro" onchange="renderLocalesTable()">
-                <option value="TODOS">Todas las Categorías</option>
-                <option value="Galerías, Caracoles & Pasajes">🏛️ Galerías, Caracoles & Pasajes</option>
-                <option value="Minimarkets & Bazares">🏪 Minimarkets & Bazares</option>
-                <option value="Comida Rápida & Restoranes">🍔 Comida Rápida & Restoranes</option>
-                <option value="Ópticas & Retail">👓 Ópticas & Retail</option>
-                <option value="Peluquerías & Estética">✂️ Peluquerías & Estética</option>
-                <option value="Servicios Varios">💼 Servicios Varios</option>
-              </select>
-            </div>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Local / N°</th>
-                  <th>Galería / Dirección</th>
-                  <th>Rubro</th>
-                  <th>Contacto</th>
-                  <th>Estado Maps</th>
-                  <th>Estado Venta</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody id="prospectsTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </div>
-
-    <!-- PESTAÑA DIRECTORIO GENERAL DE GALERÍAS -->
-    <div id="galeriasTab" class="tab-content">
-      <div class="galerias-header">
-        <h2>🏛️ Todas las Galerías de Providencia</h2>
-        <button class="btn-primary" style="width: auto;" onclick="openNuevaGaleriaModal()">➕ Crear Nueva Galería</button>
-      </div>
-      <div class="galerias-grid" id="galeriasGridContainer"></div>
-    </div>
+    </main>
   </div>
 
-  <!-- MODAL EDITAR LOCAL -->
-  <div id="editLocalModal" class="modal">
+  <!-- Modal Edición/Creación -->
+  <div id="editModal" class="modal hidden">
     <div class="modal-content">
       <span class="close-btn" onclick="closeEditModal()">&times;</span>
-      <h3>✏️ Editar Datos del Local</h3>
+      <h2 id="modalTitle">Editar Local</h2>
       <form id="editLocalForm">
         <input type="hidden" id="editLocalId">
-        <div class="form-group">
-          <label>Nombre del Local</label>
-          <input type="text" id="editNombre" required>
+        
+        <label>Nombre del Local:</label>
+        <input type="text" id="editNombre" required>
+
+        <label>Rubro:</label>
+        <input type="text" id="editRubro">
+
+        <label>Galería / Caracol:</label>
+        <select id="editGaleriaPertenece"></select>
+
+        <label>N° Local:</label>
+        <input type="text" id="editNumLocal">
+
+        <label>Dirección:</label>
+        <input type="text" id="editDireccion">
+
+        <label>WhatsApp / Teléfono:</label>
+        <input type="text" id="editWhatsapp">
+
+        <label>Email:</label>
+        <input type="email" id="editEmail">
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="editTieneMaps">
+          <label for="editTieneMaps">¿Tiene Google Maps?</label>
         </div>
-        <div class="form-group">
-          <label>Rubro / Categoría</label>
-          <select id="editRubro">
-            <option value="Galerías, Caracoles & Pasajes">🏛️ Galerías, Caracoles & Pasajes</option>
-            <option value="Minimarkets & Bazares">🏪 Minimarkets & Bazares</option>
-            <option value="Comida Rápida & Restoranes">🍔 Comida Rápida & Restoranes</option>
-            <option value="Ópticas & Retail">👓 Ópticas & Retail</option>
-            <option value="Peluquerías & Estética">✂️ Peluquerías & Estética</option>
-            <option value="Servicios Varios">💼 Servicios Varios</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Galería Asignada</label>
-          <select id="editGaleriaPertenece"></select>
-        </div>
-        <div class="form-group">
-          <label>N° de Local / Piso</label>
-          <input type="text" id="editNumLocal">
-        </div>
-        <div class="form-group">
-          <label>Dirección</label>
-          <input type="text" id="editDireccion" required>
-        </div>
-        <div class="form-group">
-          <label>Teléfono / WhatsApp</label>
-          <input type="text" id="editWhatsapp">
-        </div>
-        <div class="form-group">
-          <label>Email de Contacto</label>
-          <input type="email" id="editEmail">
-        </div>
-        <div class="form-checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="editTieneMaps">
-            <span>¿Tiene ficha en Google Maps?</span>
-          </label>
-        </div>
-        <button type="submit" class="btn-primary">💾 Guardar Cambios</button>
+
+        <button type="submit" class="btn-primary">Guardar en la Nube</button>
       </form>
     </div>
   </div>
 
-  <!-- MODAL NUEVA GALERÍA -->
-  <div id="nuevaGaleriaModal" class="modal">
-    <div class="modal-content">
-      <span class="close-btn" onclick="closeNuevaGaleriaModal()">&times;</span>
-      <h3>🏛️ Registrar Nueva Galería / Portal</h3>
-      <form id="nuevaGaleriaForm">
-        <div class="form-group">
-          <label>Nombre *</label>
-          <input type="text" id="galeriaNombre" required>
-        </div>
-        <div class="form-group">
-          <label>Dirección *</label>
-          <input type="text" id="galeriaDireccion" required>
-        </div>
-        <div class="form-group">
-          <label>Teléfono Contacto</label>
-          <input type="tel" id="galeriaTelefono">
-        </div>
-        <button type="submit" class="btn-primary">💾 Crear Galería</button>
-      </form>
-    </div>
-  </div>
-
+  <!-- Carga de Scripts en Orden -->
+  <script src="config.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

@@ -1,234 +1,161 @@
 // ==========================================
-// 1. BASE DE DATOS E INICIALIZACIÓN
+// INICIALIZACIÓN DE CLIENTE DE SUPABASE
 // ==========================================
-
-const galeriasBase = [
-  { id: "gal_1", nombre: "Portal Lyon", direccion: "Av. Providencia 2198", admin: "Administración Central", telefono: "9 9589 5918" },
-  { id: "gal_2", nombre: "Caracol Los Leones", direccion: "Nueva Los Leones 030, 050", admin: "Conserjería", telefono: "Sin registro" },
-  { id: "gal_3", nombre: "Edificio Dos Caracoles", direccion: "Av. Providencia 2216", admin: "Administración", telefono: "(2) 2232 7557" },
-  { id: "gal_4", nombre: "Dos Providencias Shopping Center", direccion: "Av. Providencia 2237", admin: "Administración", telefono: "(2) 2334 0645" },
-  { id: "gal_5", nombre: "Paseo Las Palmas", direccion: "Av. Providencia 2208", admin: "Administración", telefono: "9 9434 6685" },
-  { id: "gal_6", nombre: "Galería Zona Franca", direccion: "Av. Providencia 2251", admin: "Administración", telefono: "(2) 2334 3067" },
-  { id: "gal_7", nombre: "Galería Puerta del Sol", direccion: "Av. Providencia 1336", admin: "Conserjería", telefono: "Sin registro" },
-  { id: "gal_8", nombre: "Galería Los Pájaros", direccion: "Av. Providencia 2348", admin: "Administración", telefono: "(2) 2234 0714" },
-  { id: "gal_9", nombre: "Galería Madrid / Centro Comercial Madrid", direccion: "Av. Pedro de Valdivia 1783", admin: "Administración", telefono: "(2) 2225 8268" },
-  { id: "gal_10", nombre: "Galería Plaza Lyon", direccion: "Las Bellotas 269", admin: "Administración", telefono: "Sin registro" }
-];
-
-function extraerNumeroLocal(textoUbicacion) {
-  if (!textoUbicacion) return null;
-  // Extrae el primer número que encuentre tras la palabra Loc o Local
-  const match = textoUbicacion.match(/Loc(?:al)?\s*(\d+)/i);
-  return match ? parseInt(match[1], 10) : null;
+if (typeof CONFIG === 'undefined' || !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_KEY) {
+  console.error("Error: No se encontraron las credenciales en config.js");
 }
 
-function obtenerLocalesIniciales() {
-  if (typeof LOCALES_DATA !== 'undefined' && Array.isArray(LOCALES_DATA)) {
-    return LOCALES_DATA.map((item, index) => {
-      const numExtraido = extraerNumeroLocal(item.ubicacion);
-      return {
-        id: item.id || `loc_${index + 1}`,
-        galeriaId: "gal_1",
-        numLocalVal: numExtraido,
-        numLocal: numExtraido ? `Local ${numExtraido}` : (item.ubicacion ? (item.ubicacion.match(/Loc\s*[\d\w\-]+|Local\s*[\d\w\-]+/i)?.[0] || 'S/N') : 'S/N'),
-        nombre: item.nombre || "Sin nombre",
-        rubro: item.rubro || "Servicios / Retail",
-        direccion: item.ubicacion || "Av. Providencia 2198",
-        whatsapp: item.telefono || "",
-        email: "",
-        estado: item.estado || "Pendiente",
-        tieneGoogleMaps: false,
-        origen: item.origen || "Portal Lyon CSV"
-      };
-    });
-  }
-  return [];
+const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+
+let prospectos = [];
+let galerias = typeof galeriasBase !== 'undefined' ? galeriasBase : [];
+
+// Inicialización de la aplicación
+document.addEventListener('DOMContentLoaded', () => {
+  initApp();
+});
+
+async function initApp() {
+  populateGaleriaSelects();
+  setupEventListeners();
+  await loadAndListen();
 }
 
-// Cargar estado inicial
-let galerias = JSON.parse(localStorage.getItem('galerias_crm_provi')) || galeriasBase;
-let prospectos = JSON.parse(localStorage.getItem('prospectos_crm_provi'));
+// Cargar datos iniciales y escuchar cambios en tiempo real
+async function loadAndListen() {
+  // 1. Obtención inicial de datos
+  const { data, error } = await supabaseClient.from('prospectos').select('*');
+  if (!error && data) {
+    prospectos = data;
+    renderAll();
+  } else if (error) {
+    console.error('Error al cargar datos desde Supabase:', error);
+  }
 
-if (!prospectos || prospectos.length === 0) {
-  prospectos = obtenerLocalesIniciales();
-  localStorage.setItem('prospectos_crm_provi', JSON.stringify(prospectos));
+  // 2. Escucha activa de cambios (Sincronización multi-dispositivo)
+  supabaseClient
+    .channel('realtime-prospectos')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'prospectos' }, async () => {
+      const { data: updated } = await supabaseClient.from('prospectos').select('*');
+      if (updated) {
+        prospectos = updated;
+        renderAll();
+      }
+    })
+    .subscribe();
 }
 
-function saveData() {
-  localStorage.setItem('galerias_crm_provi', JSON.stringify(galerias));
-  localStorage.setItem('prospectos_crm_provi', JSON.stringify(prospectos));
-  renderAll();
-}
+// Renderizar tarjetas de locales
+function renderAll() {
+  const container = document.getElementById('localesList');
+  const searchVal = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const filterGaleria = document.getElementById('filterGaleria')?.value || '';
 
-// ==========================================
-// 2. FUNCIONES DE DESPLEGABLES Y POBLADO
-// ==========================================
-
-function populateGaleriaSelects() {
-  const selectVista = document.getElementById('selectGaleriaVista');
-  const selectForm = document.getElementById('galeriaPertenece');
-  const selectEdit = document.getElementById('editGaleriaPertenece');
-
-  const optionsHTML = galerias.map(g => `<option value="${g.id}">${g.nombre} (${g.direccion})</option>`).join('');
-
-  if (selectVista) {
-    selectVista.innerHTML = `<option value="">-- Selecciona una Galería --</option>` + optionsHTML;
-  }
-  if (selectForm) {
-    selectForm.innerHTML = `<option value="">Sin Galería Asignada</option>` + optionsHTML;
-  }
-  if (selectEdit) {
-    selectEdit.innerHTML = `<option value="">Sin Galería Asignada</option>` + optionsHTML;
-  }
-}
-
-// ==========================================
-// 3. RENDERIZADO DE LOCALES CON ORDENAMIENTO
-// ==========================================
-
-function renderLocalesPorGaleria() {
-  const selectVista = document.getElementById('selectGaleriaVista');
-  const container = document.getElementById('tablaLocalesGaleriaBody');
-  const detailsContainer = document.getElementById('galeriaDetails');
-
-  if (!selectVista || !container) return;
-
-  const galeriaId = selectVista.value;
-  const galeriaSeleccionada = galerias.find(g => g.id === galeriaId);
-
-  // Tarjeta Informativa
-  if (detailsContainer) {
-    if (galeriaSeleccionada) {
-      detailsContainer.innerHTML = `
-        <h3 style="color: var(--primary);">${galeriaSeleccionada.nombre}</h3>
-        <p><strong>📍 Dirección:</strong> ${galeriaSeleccionada.direccion}</p>
-        <p><strong>👤 Administración:</strong> ${galeriaSeleccionada.admin} | <strong>📞 Teléfono:</strong> ${galeriaSeleccionada.telefono}</p>
-      `;
-    } else {
-      detailsContainer.innerHTML = `<p class="text-muted">Selecciona una galería del listado para ver su información técnica.</p>`;
-    }
-  }
-
-  // Filtrar y Ordenar Numericamente (locales sin número al final)
-  let filtrados = prospectos.filter(p => p.galeriaId === galeriaId);
-
-  filtrados.sort((a, b) => {
-    if (a.numLocalVal !== null && b.numLocalVal !== null) {
-      return a.numLocalVal - b.numLocalVal;
-    }
-    if (a.numLocalVal !== null) return -1;
-    if (b.numLocalVal !== null) return 1;
-    return a.nombre.localeCompare(b.nombre);
-  });
-
+  if (!container) return;
   container.innerHTML = '';
 
-  if (!galeriaId) {
-    container.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color: var(--text-muted);">Selecciona una galería en el desplegable superior.</td></tr>`;
-    return;
-  }
-
-  if (filtrados.length === 0) {
-    container.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color: var(--text-muted);">No hay locales registrados en esta galería.</td></tr>`;
-    return;
-  }
-
-  // Dibujar Filas
-  filtrados.forEach(p => {
-    container.innerHTML += `
-      <tr>
-        <td><strong>${p.numLocal}</strong><br><small style="color:var(--text-muted);">${p.nombre}</small></td>
-        <td><span class="tag-rubro">${p.rubro}</span></td>
-        <td>
-          ${p.whatsapp ? `<a href="https://wa.me/${p.whatsapp.replace(/\D/g,'')}" target="_blank" style="color:var(--success); text-decoration:none;">📱 ${p.whatsapp}</a>` : '<span style="color:var(--text-muted);">-</span>'}
-        </td>
-        <td>
-          ${p.tieneGoogleMaps ? '<span class="badge-maps-yes">✅ En Maps</span>' : '<span class="badge-maps-no">❌ Sin Maps</span>'}
-        </td>
-        <td><span class="tag-galeria">${p.estado}</span></td>
-        <td>
-          <button class="btn-edit" onclick="openEditModal('${p.id}')">✏️ Editar</button>
-        </td>
-      </tr>
-    `;
+  const filtered = prospectos.filter(p => {
+    const matchSearch = (p.nombre || '').toLowerCase().includes(searchVal) || 
+                        (p.rubro || '').toLowerCase().includes(searchVal) || 
+                        (p.direccion || '').toLowerCase().includes(searchVal);
+    const matchGaleria = !filterGaleria || p.galeriaId === filterGaleria;
+    return matchSearch && matchGaleria;
   });
+
+  filtered.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card-local';
+    card.innerHTML = `
+      <h3>${p.nombre || 'Sin nombre'}</h3>
+      <p><strong>Rubro:</strong> ${p.rubro || '-'}</p>
+      <p><strong>Local:</strong> ${p.numLocal || '-'}</p>
+      <p><strong>Dirección:</strong> ${p.direccion || '-'}</p>
+      <p><strong>Contacto:</strong> ${p.whatsapp || '-'}</p>
+      <button class="btn-secondary" onclick="openEditModal('${p.id}')">Editar</button>
+    `;
+    container.appendChild(card);
+  });
+
+  const stats = document.getElementById('statsContainer');
+  if (stats) stats.innerText = `Total registrados: ${prospectos.length}`;
 }
 
-// ==========================================
-// 4. MODAL DE EDICIÓN
-// ==========================================
-
-function openEditModal(id) {
-  const local = prospectos.find(p => p.id === id);
-  if (!local) return;
-
-  document.getElementById('editLocalId').value = local.id;
-  document.getElementById('editNombre').value = local.nombre;
-  document.getElementById('editRubro').value = local.rubro;
-  document.getElementById('editGaleriaPertenece').value = local.galeriaId || '';
-  document.getElementById('editNumLocal').value = local.numLocal;
-  document.getElementById('editDireccion').value = local.direccion;
-  document.getElementById('editWhatsapp').value = local.whatsapp;
-  document.getElementById('editEmail').value = local.email || '';
-  document.getElementById('editTieneMaps').checked = !!local.tieneGoogleMaps;
-
-  const modal = document.getElementById('editLocalModal');
-  if (modal) modal.classList.add('active');
+// Guardar/Actualizar registros en la nube
+async function saveLocalToCloud(localData) {
+  const { error } = await supabaseClient.from('prospectos').upsert(localData);
+  if (error) {
+    console.error('Error al guardar en Supabase:', error);
+    alert('Error al intentar guardar los datos.');
+  } else {
+    closeEditModal();
+  }
 }
 
-function closeEditModal() {
-  const modal = document.getElementById('editLocalModal');
-  if (modal) modal.classList.remove('active');
-}
+// Configuración de interactividad y eventos
+function setupEventListeners() {
+  document.getElementById('searchInput')?.addEventListener('input', renderAll);
+  document.getElementById('filterGaleria')?.addEventListener('change', renderAll);
+  
+  document.getElementById('btnNewLocal')?.addEventListener('click', () => {
+    openEditModal();
+  });
 
-// Guardar cambios del Modal
-document.getElementById('editLocalForm')?.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const id = document.getElementById('editLocalId').value;
-  const index = prospectos.findIndex(p => p.id === id);
-
-  if (index !== -1) {
-    const numTexto = document.getElementById('editNumLocal').value;
-    const numExtraido = extraerNumeroLocal(numTexto);
-
-    prospectos[index] = {
-      ...prospectos[index],
+  document.getElementById('editLocalForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editLocalId').value || 'loc_' + Date.now();
+    
+    const localData = {
+      id: id,
       nombre: document.getElementById('editNombre').value,
       rubro: document.getElementById('editRubro').value,
       galeriaId: document.getElementById('editGaleriaPertenece').value,
-      numLocal: numTexto,
-      numLocalVal: numExtraido,
+      numLocal: document.getElementById('editNumLocal').value,
       direccion: document.getElementById('editDireccion').value,
       whatsapp: document.getElementById('editWhatsapp').value,
       email: document.getElementById('editEmail').value,
       tieneGoogleMaps: document.getElementById('editTieneMaps').checked
     };
 
-    saveData();
-    closeEditModal();
-  }
-});
-
-function renderAll() {
-  populateGaleriaSelects();
-  
-  const selectVista = document.getElementById('selectGaleriaVista');
-  if (selectVista && !selectVista.value) {
-    selectVista.value = 'gal_1';
-  }
-
-  renderLocalesPorGaleria();
+    await saveLocalToCloud(localData);
+  });
 }
 
-// ==========================================
-// 5. INICIALIZACIÓN
-// ==========================================
-
-document.addEventListener('DOMContentLoaded', () => {
-  renderAll();
-
-  const selectVista = document.getElementById('selectGaleriaVista');
-  if (selectVista) {
-    selectVista.addEventListener('change', renderLocalesPorGaleria);
+function openEditModal(id = null) {
+  const modal = document.getElementById('editModal');
+  const title = document.getElementById('modalTitle');
+  
+  if (id) {
+    const item = prospectos.find(p => p.id === id);
+    if (!item) return;
+    title.innerText = 'Editar Local';
+    document.getElementById('editLocalId').value = item.id;
+    document.getElementById('editNombre').value = item.nombre || '';
+    document.getElementById('editRubro').value = item.rubro || '';
+    document.getElementById('editGaleriaPertenece').value = item.galeriaId || '';
+    document.getElementById('editNumLocal').value = item.numLocal || '';
+    document.getElementById('editDireccion').value = item.direccion || '';
+    document.getElementById('editWhatsapp').value = item.whatsapp || '';
+    document.getElementById('editEmail').value = item.email || '';
+    document.getElementById('editTieneMaps').checked = !!item.tieneGoogleMaps;
+  } else {
+    title.innerText = 'Nuevo Local';
+    document.getElementById('editLocalForm').reset();
+    document.getElementById('editLocalId').value = '';
   }
-});
+  
+  modal.classList.remove('hidden');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal')?.classList.add('hidden');
+}
+
+function populateGaleriaSelects() {
+  const filter = document.getElementById('filterGaleria');
+  const editSelect = document.getElementById('editGaleriaPertenece');
+  
+  galerias.forEach(g => {
+    if (filter) filter.innerHTML += `<option value="${g.id}">${g.nombre}</option>`;
+    if (editSelect) editSelect.innerHTML += `<option value="${g.id}">${g.nombre}</option>`;
+  });
+}
